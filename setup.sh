@@ -1,6 +1,20 @@
 #! /bin/bash
 
-set -o nounset
+# Exit on simple error
+set -e
+
+# Standard error function
+function error(){
+
+	echo -e "[Error]\n$1"
+}
+
+# Exit if the user is no root
+if [ $(id -u) != 0 ]; then
+	error "You are not logged in as root". 
+	exit 1;
+fi
+
 
 # Setting up variables
 PUPPET_CONF=/etc/puppet/puppet.conf
