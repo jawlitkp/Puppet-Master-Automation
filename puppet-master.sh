@@ -11,15 +11,9 @@ function install_server() {
 	# Editing puppet configurations file with alternative dns names. Checks if line already exists. 
 	grep --silent --regexp='dns_alt_name*' $PUPPET_CONF || sed -i "/\[main\]/a\    dns_alt_name = $HOSTNAME" $PUPPET_CONF
 
-	# Creating directories in production environment
-	mkdir --parents /etc/puppet/environments/production/{modules, manifests} || error "Failed to make the puppet environment \
-	directories"
-
-	touch $ENVIRONMENT_CONF || error "Could not create environment configuration file" #Create environment configuration file |
-	> $ENVIRONMENT_CONF #Empty file if it already exists
+	configure_environment # Sets up environment directory and configuration file
 
 	# Edit configuration file with module path name
-	echo -n -e "Modifying the evironment configuration file\n"
 	echo -n -e "modulepath = $MODULE_PATH\nenvironment_timeout = 5s" >> $ENVIRONMENT_CONF
 	
 	# Create a master node declaration in the puppet configuration
@@ -45,3 +39,16 @@ function install_server() {
 	firewall-cmd --permanent --add-port=8140/tcp || error "Failed to add entry to the firewall"
 	firewall-cmd --reload
 	}
+
+function configure_environment(){
+
+	# Creating directories in production environment
+	mkdir --parents /etc/puppet/environments/production/{modules, manifests} || error "Failed to make the puppet environment \
+	directories"
+
+	if [ -f $ENVIRONMENT_CONF ]; then
+		echo "Puppet configuration already exists."
+	else
+		touch $ENVIRONMENT_CONF || error "Could not create environment configuration file"
+		
+}
