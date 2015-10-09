@@ -8,6 +8,7 @@ function install_puppet() {
 		error "Puppet is already installed"
 	else
 		echo "Starting the installation."
+
 	fi
 	
 	# Install puppet labs repository for RHEL 7 
@@ -20,6 +21,12 @@ function install_puppet() {
 function puppet_master(){
 
 	yum install puppet-server -y || error "Failed to install the puppet master server"
+	
+	#Adding puppet port 8140 to the firewall
+	firewall-cmd --permanent --add-port=8140/tcp || error "Failed to add entry to the firewall"
+	firewall-cmd --reload || error "Firewall could not be restarted"
+	
+	echo -n -e "Adding TCP Port 8140 to Firewall.\n"
 	# Editing puppet configurations file with alternative dns names. Checks if line already exists. 
 	grep --silent --regexp='dns_alt_name*' $PUPPET_CONF || \ 
 	sed -i "/\[main\]/a\    dns_alt_name = $HOSTNAME" $PUPPET_CONF || error "Failed to modify the configuration"
@@ -51,15 +58,20 @@ function puppet_master(){
         if [ ! -f /var/lib/puppet/ssl/public_keys/$(echo $HOSTNAME | awk '{print tolower($0)}').pem ]; then
 		echo "Generating a certificate now... "
                  puppet master --verbose --no-daemonize
-        else echo -n -e "Certificate already exists, moving on\n"
+        else 
+		echo -n -e "Certificate already exists, moving on\n"
 	fi
 
-	echo -n -e "Adding TCP Port 8140 to Firewall.\n"
-	#Adding puppet port 8140 to the firewall
-	firewall-cmd --permanent --add-port=8140/tcp || error "Failed to add entry to the firewall"
-	firewall-cmd --reload
 
 
 }
 
+# Configured puppet on the agent node
+function install_agent(){
+	yum install -y puppet || error "Failed to install puppet agent software"
+	
+	# Edit puppet agent configuration with master host details
+	sed -i "2i server=to edit later" $PUPPET_CONF || error "Failed to modify puppet agent configuration"
+	systemctl restart puppet || error "Failed to restart puppet agent"
 
+}
