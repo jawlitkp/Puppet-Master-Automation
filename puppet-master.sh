@@ -1,17 +1,37 @@
 #! /bin/bash
 
 # Install server function
-function install_server() {
+function install_puppet() {
 
-	echo "Installing RHEL 7 Puppet Labs repository"
+	# Exit installation if puppet installation is found
+	if [ -d '/var/lib/puppet' ]; then 
+		error "Puppet is already installed"
+	else
+		echo "Starting the installation."
+	fi
 	
 	# Install puppet labs repository for RHEL 7 
 	rpm -ivh https://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm || error "Failed to add the puppet labs repository"
 
-	# Editing puppet configurations file with alternative dns names. Checks if line already exists. 
-	grep --silent --regexp='dns_alt_name*' $PUPPET_CONF || sed -i "/\[main\]/a\    dns_alt_name = $HOSTNAME" $PUPPET_CONF
 
-	configure_environment # Sets up environment directory and configuration file
+}
+
+# Configures the puppet master
+function puppet_master(){
+
+	yum install puppet-server -y || error "Failed to install the puppet master server"
+	# Editing puppet configurations file with alternative dns names. Checks if line already exists. 
+	grep --silent --regexp='dns_alt_name*' $PUPPET_CONF || \ 
+	sed -i "/\[main\]/a\    dns_alt_name = $HOSTNAME" $PUPPET_CONF || error "Failed to modify the configuration"
+
+	# Creating directories in production environment
+	mkdir --parents /etc/puppet/environments/production/{modules,manifests} || \ 
+	error "Failed to make the puppet environment directories"
+
+	if [ -f $ENVIRONMENT_CONF ]; then
+		echo "Puppet configuration already exists."
+	else
+		touch $ENVIRONMENT_CONF || error "Could not create environment configuration file"
 
 	# Edit configuration file with module path name
 	echo -n -e "modulepath = $MODULE_PATH\nenvironment_timeout = 5s" >> $ENVIRONMENT_CONF
@@ -38,17 +58,8 @@ function install_server() {
 	#Adding puppet port 8140 to the firewall
 	firewall-cmd --permanent --add-port=8140/tcp || error "Failed to add entry to the firewall"
 	firewall-cmd --reload
-	}
 
-function configure_environment(){
 
-	# Creating directories in production environment
-	mkdir --parents /etc/puppet/environments/production/{modules, manifests} || error "Failed to make the puppet environment \
-	directories"
-
-	if [ -f $ENVIRONMENT_CONF ]; then
-		echo "Puppet configuration already exists."
-	else
-		touch $ENVIRONMENT_CONF || error "Could not create environment configuration file"
-		
 }
+
+
