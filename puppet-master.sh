@@ -25,6 +25,8 @@ function print_msg(){
 PUPPET_CONF=/etc/puppet/puppet.conf
 ENVIRONMENT_CONF=/etc/puppet/environments/production/environment.conf
 MODULE_PATH=/etc/puppet/environments/production/modules
+MASTERHOST="some value"
+
 
 # Install server function
 function install_puppet() {
@@ -93,11 +95,22 @@ function install_agent(){
 	yum install -y puppet || error "Failed to install puppet agent software"
 	
 	# Edit puppet agent configuration with master host details
+	print_msg "Modifying puppet configuration and start up options"
 	sed -i "2i server=to edit later" $PUPPET_CONF || error "Failed to modify puppet agent configuration"
+	systemctl enable puppet || error "Failed to allow the puppet agent to run at start up"
 	systemctl restart puppet || error "Failed to restart puppet agent"
 
 }
 
-puppet_master
+# while getopts ":hdm: --help" opt; do 
+while getopts h:d:m opt; do
+	case $opt in
+		h|--help) echo "Some help informationi and $opt";;
+		d) echo "domain option";;
+		m) echo "m option";;
+	esac
+done
+
+# puppet_master
 
 exit 0
