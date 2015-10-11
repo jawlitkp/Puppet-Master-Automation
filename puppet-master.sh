@@ -20,33 +20,45 @@ function print_msg(){
 
 }
 			
-			
+
+function print_ok(){
+	echo -e "[Success]\n"
+}
+
 # Setting up variables
 PUPPET_CONF=/etc/puppet/puppet.conf
 ENVIRONMENT_CONF=/etc/puppet/environments/production/environment.conf
 MODULE_PATH=/etc/puppet/environments/production/modules
-MASTERHOST="some value"
+MASTERHOST=""
+NODE=""
+DOMAIN=""
 
 
 # Install server function
 function install_puppet() {
 
-
 	# Exit installation if puppet installation is found
 	if [ -d '/var/lib/puppet' ]; then 
-		error "Puppet is already installed"
+		while true; do
+			read -p "Puppet is already installed. Continue with the installation? " yn
+			case $yn in
+			    [Yy]* ) break;;
+			    [Nn]* ) exit 1;;
+			    * ) print_msg "Please answer yes or no";;
+			esac
+		done
 	else
-		echo "Starting the installation."
-
+            print_msg "Adding Puppet labs repository"
+	    # Install puppet labs repository for RHEL 7 
+	    rpm -i https://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm && print_ok || error "Failed to add the puppet labs repository"
 	fi
-	# Install puppet labs repository for RHEL 7 
-	rpm -ivh https://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm && : || error "Failed to add the puppet labs repository"
+
 
 }
 
 # Configures the puppet master
-function puppet_master(){
-
+function install_master(){
+	print_msg "Starting puppet master node installation..."
 	yum install puppet-server -y || error "Failed to install the puppet master server"
 
 	#Adding puppet port 8140 to the firewall
@@ -81,11 +93,12 @@ function puppet_master(){
 	sed --in-place 's\=enforcing\=permissive\g' /etc/sysconfig/selinux || error "Unable to edit the SELinux configuration file"
 
 	# Checks if a certificate exists. If not, generate a new one
-        if [ ! -f /var/lib/puppet/ssl/public_keys/$(echo $HOSTNAME | awk '{print tolower($0)}').pem ]; then
+        if [ ! -f /var/lib/puppet/ssl/public_keys/$(echo $HOSTNAME | awk '{print tolower($0)}').pem ]; then 
+		# Puppet creates keynames in lower case 
 		print_msg "Generating a certificate now... "
                 puppet master --verbose --no-daemonize || error "Failed to generate an SSL certificate for the master"
         else 
-		echo -n -e "Certificate already exists, moving on\n"
+		print_msg "Certificate already exists, moving on"
 	fi
 
 }
@@ -96,21 +109,44 @@ function install_agent(){
 	
 	# Edit puppet agent configuration with master host details
 	print_msg "Modifying puppet configuration and start up options"
-	sed -i "2i server=to edit later" $PUPPET_CONF || error "Failed to modify puppet agent configuration"
+	sed -i "2i server=$MASTERHOST" $PUPPET_CONF || error "Failed to modify puppet agent configuration"
 	systemctl enable puppet || error "Failed to allow the puppet agent to run at start up"
 	systemctl restart puppet || error "Failed to restart puppet agent"
 
+	puppet agent --verbose --no-daemonize --onetime
+	print_msg "Installation complete!"
+
 }
 
-# while getopts ":hdm: --help" opt; do 
-while getopts h:d:m opt; do
+# Take command line arguments
+while getopts :hm:n: opt; do
 	case $opt in
 		h|--help) echo "Some help informationi and $opt";;
-		d) echo "domain option";;
-		m) echo "m option";;
+		m) MASTERHOST=$OPTARG;; # Saving master host name to be used in several config files
+		n|--node) NODE=$OPTARG;; # Node type determines whether to install master or agent node
+		:)  # Deals with empty arguments
+                    print_msg "Puppet Install: Option -$OPTARG requires an argument"
+                    print_msg "Puppet Install:  '--help or -h' gives usage information"
+		    exit 1
+		    ;;
+		\?) # Deals with invalid switches
+		    print_msg "Puppet Install: Invalid option : -$OPTARG"
+		    print_msg "Puppet Install:  '--help or -h' gives usage information"
+		    exit 1
+		    ;;
 	esac
 done
 
-# puppet_master
+# Running the main installers after parsing command line arguments
+if [ "$NODE" == "master" ]; then
+	install_puppet
+	install_master
+elif [ "$NODE" == "agent" ]; then
+	install_puppet
+	install_agent
+else
+	print_msg "Puppet Install: Invalid option for -n $NODE. Please select whether you want to install a master or agent node."
+	exit 1
+fi
 
 exit 0
