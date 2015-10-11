@@ -75,6 +75,7 @@ function install_master(){
 
 	if [ -f $ENVIRONMENT_CONF ]; then
 		print_msg "Puppet configuration already exists."
+		> $ENVIRONMENT_CONF # Emptying 
 	else
 		touch $ENVIRONMENT_CONF || error "Could not create environment configuration file"
 	fi
@@ -122,7 +123,7 @@ function install_agent(){
 while getopts :hm:n: opt; do
 	case $opt in
 		h|--help) echo "Some help informationi and $opt";;
-		m) MASTERHOST=$OPTARG;; # Saving master host name to be used in several config files
+		m|--masternode) MASTERHOST=$OPTARG;; # Saving master host name to be used in several config files
 		n|--node) NODE=$OPTARG;; # Node type determines whether to install master or agent node
 		:)  # Deals with empty arguments
                     print_msg "Puppet Install: Option -$OPTARG requires an argument"
